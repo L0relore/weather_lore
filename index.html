@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:">
+<title>Weather Lore</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+  #app { background: #000; min-height: 100vh; padding: 1.25rem; max-width: 700px; margin: 0 auto; }
+
+  /* Header */
+  .header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 1.25rem; }
+  .logo { font-size: 22px; font-weight: 600; color: #fff; letter-spacing: -0.5px; }
+  .logo span { color: #555; font-weight: 400; }
+
+  /* Quick cities */
+  .quick-cities { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .chip { background: #111; border: 0.5px solid #2a2a2a; border-radius: 20px; color: #888; font-size: 13px; padding: 5px 12px; cursor: pointer; font-family: inherit; -webkit-appearance: none; }
+  .chip:hover, .chip.active { border-color: #555; color: #fff; background: #1a1a1a; }
+
+  /* Search row */
+  .city-row { display: flex; gap: 10px; align-items: center; margin-bottom: 1.25rem; }
+  .city-input { background: #111; border: 0.5px solid #333; border-radius: 8px; color: #fff; font-size: 16px; padding: 10px 14px; flex: 1; outline: none; font-family: inherit; -webkit-appearance: none; }
+  .city-input:focus { border-color: #555; }
+  .city-input::placeholder { color: #444; }
+  .btn-search { background: #fff; color: #000; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; padding: 10px 18px; cursor: pointer; font-family: inherit; white-space: nowrap; -webkit-appearance: none; }
+  .btn-search:active { background: #ccc; }
+  .btn-search:disabled { background: #222; color: #555; cursor: not-allowed; }
+
+  /* Tab switcher */
+  .tabs { display: flex; gap: 4px; margin-bottom: 1rem; background: #111; border-radius: 10px; padding: 4px; border: 0.5px solid #1e1e1e; }
+  .tab { flex: 1; text-align: center; padding: 7px 0; font-size: 13px; font-weight: 500; color: #555; cursor: pointer; border-radius: 7px; font-family: inherit; background: none; border: none; transition: all 0.15s; }
+  .tab.active { background: #222; color: #fff; }
+
+  /* Summary */
+  .summary-row { background: #111; border: 0.5px solid #222; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+  .summary-avg { font-size: 44px; font-weight: 500; color: #fff; line-height: 1; }
+  .summary-label { font-size: 11px; color: #555; margin-bottom: 2px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .dot-live { width: 6px; height: 6px; border-radius: 50%; background: #3a3; display: inline-block; margin-right: 5px; }
+  .summary-city { font-size: 16px; color: #888; }
+  .summary-range { font-size: 13px; color: #555; margin-top: 4px; }
+
+  /* Source cards grid (today) */
+  .cards-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 1rem; }
+  @media (min-width: 500px) { .cards-grid { grid-template-columns: repeat(4, 1fr); } }
+  .source-card { background: #111; border: 0.5px solid #222; border-radius: 12px; padding: 0.9rem; }
+  .source-card.loading { opacity: 0.4; }
+  .source-name { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .source-temp { font-size: 34px; font-weight: 500; color: #fff; line-height: 1; margin-bottom: 5px; }
+  .source-desc { font-size: 12px; color: #888; margin-bottom: 3px; }
+  .source-meta { font-size: 11px; color: #555; margin-bottom: 2px; }
+  .source-badge { display: inline-block; font-size: 10px; background: #1a1a1a; border: 0.5px solid #2a2a2a; border-radius: 4px; padding: 2px 6px; color: #666; margin-top: 6px; }
+  .error-card { color: #e24b4a; font-size: 12px; padding: 0.5rem 0; }
+
+  /* 5-day forecast */
+  .forecast-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1rem; }
+  .forecast-day-row { background: #111; border: 0.5px solid #1e1e1e; border-radius: 12px; padding: 0.9rem 1rem; }
+  .forecast-day-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .day-name { font-size: 14px; font-weight: 500; color: #fff; min-width: 90px; }
+  .day-desc { font-size: 12px; color: #666; flex: 1; text-align: center; }
+  .day-temps { font-size: 14px; color: #888; text-align: right; }
+  .day-temps strong { color: #fff; }
+  .forecast-sources { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .fc-source { background: #1a1a1a; border-radius: 8px; padding: 6px 8px; text-align: center; }
+  .fc-source-name { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+  .fc-source-hi { font-size: 14px; font-weight: 500; color: #fff; }
+  .fc-source-lo { font-size: 11px; color: #555; }
+
+  /* Skeleton */
+  .skeleton { background: #1e1e1e; border-radius: 4px; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 0.3; } 50% { opacity: 0.7; } }
+
+  .updated { font-size: 11px; color: #333; margin-top: 0.5rem; text-align: right; }
+  .disclaimer { font-size: 11px; color: #2a2a2a; margin-top: 1.25rem; line-height: 1.7; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="logo">Weather <span>Lore</span></div>
+  </div>
+
+  <div class="quick-cities" id="quickCities"></div>
+
+  <div class="city-row">
+    <input class="city-input" id="cityInput" type="text" placeholder="Ciudad…" value="Barcelona"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+    <button class="btn-search" id="btnSearch">Consultar</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" id="tabToday" onclick="switchTab('today')">Hoy</button>
+    <button class="tab" id="tab5d" onclick="switchTab('5d')">5 días</button>
+  </div>
+
+  <!-- Summary (shared) -->
+  <div id="summaryRow" style="display:none" class="summary-row">
+    <div>
+      <div class="summary-label"><span class="dot-live"></span><span id="sumLabel">Media de fuentes</span></div>
+      <div class="summary-avg" id="avgTemp">—</div>
+    </div>
+    <div>
+      <div class="summary-city" id="sumCity">—</div>
+      <div class="summary-range" id="sumRange">—</div>
+    </div>
+  </div>
+
+  <!-- Today view -->
+  <div id="viewToday">
+    <div class="cards-grid" id="cardsGrid"></div>
+  </div>
+
+  <!-- 5-day view -->
+  <div id="view5d" class="hidden">
+    <div class="forecast-grid" id="forecastGrid"></div>
+  </div>
+
+  <div class="updated" id="updatedTs"></div>
+  <div class="disclaimer">Datos vía Open-Meteo (libre, sin clave API) usando ECMWF · GFS · AROME · IFS — los modelos equivalentes a AccuWeather, Tiempo.es, Meteocat y Weather Data.</div>
+</div>
+
+<script>
+const SOURCES = [
+  { id: 'accuweather',  name: 'AccuWeather',  color: '#e87722', model: 'best_match',            badge: 'ECMWF' },
+  { id: 'tiempoes',     name: 'Tiempo.es',    color: '#5b8dd9', model: 'gfs_global',             badge: 'GFS'   },
+  { id: 'meteocat',     name: 'Meteocat',     color: '#3a8a5e', model: 'meteofrance_seamless',   badge: 'AROME' },
+  { id: 'weatherdata',  name: 'Weather Data', color: '#9b72d0', model: 'ecmwf_ifs025',           badge: 'IFS'   },
+];
+
+const QUICK = ['Barcelona', 'Madrid', 'Valencia', 'Bilbao', 'Sevilla', 'Girona'];
+let lastCity = 'Barcelona';
+let currentTab = 'today';
+let cachedCards = [];
+let cachedForecast = [];
+
+const WC = {
+  0:'Despejado',1:'Casi despejado',2:'Parc. nublado',3:'Cubierto',
+  45:'Niebla',48:'Niebla helada',51:'Llovizna',53:'Llovizna',55:'Llovizna',
+  61:'Lluvia ligera',63:'Lluvia',65:'Lluvia intensa',
+  71:'Nieve ligera',73:'Nieve',75:'Nevada',
+  80:'Chubascos',81:'Chubascos',82:'Chubascos f.',
+  95:'Tormenta',96:'Tormenta',99:'Tormenta f.',
+};
+const desc = c => WC[c] || 'Variable';
+
+const DAYS_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+function dayName(isoDate, i) {
+  if (i === 0) return 'Hoy';
+  if (i === 1) return 'Mañana';
+  const d = new Date(isoDate + 'T12:00:00');
+  return DAYS_ES[d.getDay()];
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabToday').classList.toggle('active', tab === 'today');
+  document.getElementById('tab5d').classList.toggle('active', tab === '5d');
+  document.getElementById('viewToday').classList.toggle('hidden', tab !== 'today');
+  document.getElementById('view5d').classList.toggle('hidden', tab !== '5d');
+  updateSummaryForTab();
+}
+
+function updateSummaryForTab() {
+  if (!cachedCards.length && !cachedForecast.length) return;
+  if (currentTab === 'today') {
+    const temps = cachedCards.filter(c => c.temp !== null).map(c => c.temp);
+    const avg = temps.length ? Math.round(temps.reduce((a,b)=>a+b,0)/temps.length) : null;
+    const hi = temps.length ? Math.round(Math.max(...temps)) : null;
+    const lo = temps.length ? Math.round(Math.min(...temps)) : null;
+    document.getElementById('sumLabel').textContent = 'Media de fuentes';
+    document.getElementById('avgTemp').textContent = avg !== null ? `${avg}°` : '—';
+    document.getElementById('sumRange').textContent = hi !== null ? `Diferencia entre fuentes: ${lo}°–${hi}°` : '';
+  } else {
+    // For 5d, show avg max of day 0 across sources
+    const maxes = cachedForecast.filter(s => s.maxTemps?.[0] != null).map(s => s.maxTemps[0]);
+    const avg = maxes.length ? Math.round(maxes.reduce((a,b)=>a+b,0)/maxes.length) : null;
+    document.getElementById('sumLabel').textContent = 'Máx. hoy · media fuentes';
+    document.getElementById('avgTemp').textContent = avg !== null ? `${avg}°` : '—';
+    document.getElementById('sumRange').textContent = 'Próximos 5 días · 4 modelos';
+  }
+}
+
+function renderQuick() {
+  document.getElementById('quickCities').innerHTML = QUICK.map(c =>
+    `<button class="chip${c===lastCity?' active':''}" onclick="selectCity('${c}')">${c}</button>`
+  ).join('');
+}
+
+function selectCity(c) {
+  document.getElementById('cityInput').value = c;
+  lastCity = c;
+  renderQuick();
+  fetchWeather();
+}
+
+function showSkeleton() {
+  document.getElementById('cardsGrid').innerHTML = SOURCES.map(s => `
+    <div class="source-card loading">
+      <div class="source-name" style="color:${s.color}">${s.name}</div>
+      <div class="skeleton" style="height:36px;width:70px;margin-bottom:8px"></div>
+      <div class="skeleton" style="height:12px;width:90%;margin-bottom:4px"></div>
+      <div class="skeleton" style="height:11px;width:65%"></div>
+    </div>`).join('');
+  document.getElementById('forecastGrid').innerHTML = [0,1,2,3,4].map(() => `
+    <div class="forecast-day-row" style="opacity:0.4">
+      <div class="skeleton" style="height:14px;width:80px;margin-bottom:8px"></div>
+      <div class="forecast-sources" style="margin-top:6px">${SOURCES.map(()=>`<div class="fc-source"><div class="skeleton" style="height:14px;width:30px;margin:0 auto"></div></div>`).join('')}</div>
+    </div>`).join('');
+  document.getElementById('summaryRow').style.display = 'none';
+  document.getElementById('updatedTs').textContent = '';
+  cachedCards = [];
+  cachedForecast = [];
+}
+
+async function geocode(city) {
+  const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=es&format=json`);
+  const d = await r.json();
+  if (!d.results?.length) throw new Error('Ciudad no encontrada. Prueba con otra ortografía.');
+  return d.results[0];
+}
+
+async function fetchWeather() {
+  const city = document.getElementById('cityInput').value.trim();
+  if (!city) return;
+  lastCity = city;
+  renderQuick();
+  document.getElementById('btnSearch').disabled = true;
+  showSkeleton();
+
+  try {
+    const loc = await geocode(city);
+    const { latitude: lat, longitude: lon, name, country } = loc;
+
+    const baseParams = `latitude=${lat}&longitude=${lon}`
+      + `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m`
+      + `&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max`
+      + `&timezone=auto&forecast_days=6`;
+
+    const results = await Promise.all(
+      SOURCES.map(s =>
+        fetch(`https://api.open-meteo.com/v1/forecast?${baseParams}&models=${s.model}`)
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null)
+      )
+    );
+
+    // --- TODAY cards ---
+    cachedCards = SOURCES.map((s, i) => {
+      const d = results[i];
+      const cur = d?.current;
+      return {
+        s,
+        temp:     cur?.temperature_2m      ?? null,
+        feels:    cur?.apparent_temperature ?? null,
+        code:     cur?.weather_code         ?? null,
+        wind:     cur?.wind_speed_10m       ?? null,
+        humidity: cur?.relative_humidity_2m ?? null,
+        max:      d?.daily?.temperature_2m_max?.[0] ?? null,
+        min:      d?.daily?.temperature_2m_min?.[0] ?? null,
+      };
+    });
+
+    document.getElementById('cardsGrid').innerHTML = cachedCards.map(c => `
+      <div class="source-card">
+        <div class="source-name" style="color:${c.s.color}">${c.s.name}</div>
+        <div class="source-temp">${c.temp !== null ? Math.round(c.temp)+'°' : '—'}</div>
+        ${c.code !== null ? `<div class="source-desc">${desc(c.code)}</div>` : ''}
+        ${c.feels  !== null ? `<div class="source-meta">Sensación ${Math.round(c.feels)}°</div>` : ''}
+        ${c.max    !== null ? `<div class="source-meta">↑${Math.round(c.max)}° ↓${Math.round(c.min)}°</div>` : ''}
+        ${c.wind   !== null ? `<div class="source-meta">Viento ${Math.round(c.wind)} km/h · ${c.humidity}% HR</div>` : ''}
+        ${c.temp   === null ? `<div class="error-card">Sin datos</div>` : ''}
+        <div class="source-badge">${c.s.badge}</div>
+      </div>`).join('');
+
+    // --- 5-DAY forecast ---
+    // Build per-source forecast arrays (days 1-5, skip day 0 = today)
+    cachedForecast = SOURCES.map((s, i) => {
+      const d = results[i];
+      return {
+        s,
+        dates:    d?.daily?.time                           ?? [],
+        maxTemps: d?.daily?.temperature_2m_max             ?? [],
+        minTemps: d?.daily?.temperature_2m_min             ?? [],
+        codes:    d?.daily?.weather_code                   ?? [],
+        precip:   d?.daily?.precipitation_probability_max  ?? [],
+      };
+    });
+
+    // Use dates from first available source
+    const refDates = cachedForecast.find(f => f.dates.length)?.dates ?? [];
+    // days 1..5 (skip today index 0)
+    const forecastDays = refDates.slice(1, 6);
+
+    document.getElementById('forecastGrid').innerHTML = forecastDays.map((date, di) => {
+      const idx = di + 1; // offset because we skip today
+      // avg max across sources for the header
+      const allMax = cachedForecast.filter(f => f.maxTemps[idx] != null).map(f => f.maxTemps[idx]);
+      const allMin = cachedForecast.filter(f => f.minTemps[idx] != null).map(f => f.minTemps[idx]);
+      const avgMax = allMax.length ? Math.round(allMax.reduce((a,b)=>a+b,0)/allMax.length) : null;
+      const avgMin = allMin.length ? Math.round(allMin.reduce((a,b)=>a+b,0)/allMin.length) : null;
+      // pick most common weather code
+      const codes = cachedForecast.map(f => f.codes[idx]).filter(c => c != null);
+      const mainCode = codes.length ? codes[Math.floor(codes.length/2)] : null;
+      const precips = cachedForecast.map(f => f.precip[idx]).filter(p => p != null);
+      const avgPrecip = precips.length ? Math.round(precips.reduce((a,b)=>a+b,0)/precips.length) : null;
+
+      const sourceCols = cachedForecast.map(f => {
+        const hi = f.maxTemps[idx];
+        const lo = f.minTemps[idx];
+        return `<div class="fc-source">
+          <div class="fc-source-name" style="color:${f.s.color}">${f.s.name.split(' ')[0]}</div>
+          <div class="fc-source-hi">${hi != null ? Math.round(hi)+'°' : '—'}</div>
+          <div class="fc-source-lo">${lo != null ? Math.round(lo)+'°' : '—'}</div>
+        </div>`;
+      }).join('');
+
+      return `
+        <div class="forecast-day-row">
+          <div class="forecast-day-header">
+            <div class="day-name">${dayName(date, di+1)}</div>
+            <div class="day-desc">${mainCode != null ? desc(mainCode) : ''}${avgPrecip != null && avgPrecip > 20 ? ' · '+avgPrecip+'%💧' : ''}</div>
+            <div class="day-temps"><strong>${avgMax !== null ? avgMax+'°' : '—'}</strong> / ${avgMin !== null ? avgMin+'°' : '—'}</div>
+          </div>
+          <div class="forecast-sources">${sourceCols}</div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('sumCity').textContent = `${name}, ${country}`;
+    document.getElementById('summaryRow').style.display = 'flex';
+    updateSummaryForTab();
+
+    const now = new Date();
+    document.getElementById('updatedTs').textContent =
+      `Actualizado ${now.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'})}`;
+
+  } catch(e) {
+    document.getElementById('cardsGrid').innerHTML =
+      `<div style="color:#e24b4a;font-size:13px;padding:0.5rem;grid-column:1/-1">${e.message}</div>`;
+    document.getElementById('forecastGrid').innerHTML = '';
+  } finally {
+    document.getElementById('btnSearch').disabled = false;
+  }
+}
+
+document.getElementById('btnSearch').addEventListener('click', fetchWeather);
+document.getElementById('cityInput').addEventListener('keydown', e => { if (e.key === 'Enter') fetchWeather(); });
+renderQuick();
+fetchWeather();
+</script>
+</body>
+</html>
